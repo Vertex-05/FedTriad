@@ -162,8 +162,8 @@ class Model_noskip(nn.Module):
         self.g = nn.Sequential(nn.Linear(512, 512, bias=False), nn.BatchNorm1d(512),
                                nn.ReLU(inplace=True), nn.Linear(512, feature_dim, bias=True))
 
-        if group_norm:
-            apply_gn(self)
+        # if group_norm:
+            # apply_gn(self)
 
     def forward(self, x):
         x = self.f(x)
@@ -211,8 +211,8 @@ class Model(nn.Module):
         self.g = nn.Sequential(nn.Linear(512, 512, bias=False), nn.BatchNorm1d(512),
                                nn.ReLU(inplace=True), nn.Linear(512, feature_dim, bias=True))
 
-        if group_norm:
-            apply_gn(self)
+        # if group_norm:
+            # apply_gn(self)
 
     def forward(self, x):
         x = self.f(x)
@@ -340,17 +340,37 @@ class ShuffleNet(nn.Module):
 
 ''' ConvNet '''
 class ConvNet(nn.Module):
-    def __init__(self, num_classes=10, net_width=128, net_depth=3, net_act='relu', net_norm='instancenorm', net_pooling='avgpooling', im_size = (32,32), dataset = 'cifar10'):
+    # def __init__(self, num_classes=10, net_width=128, net_depth=3, net_act='relu', net_norm='instancenorm', net_pooling='avgpooling', im_size = (32,32), dataset = 'cifar10'):
+    #     super(ConvNet, self).__init__()
+    #     channel =  channel_dict.get(dataset)
+    #     self.features, shape_feat = self._make_layers(channel, net_width, net_depth, net_norm, net_act, net_pooling, im_size)
+    #     num_feat = shape_feat[0]*shape_feat[1]*shape_feat[2]
+    #     print(f"num feat {num_feat}")
+    #     self.classifier = nn.Linear(num_feat, num_classes)
+
+    def __init__(self, num_classes=10, net_width=128, net_depth=3,
+                 net_act='relu', net_norm='instancenorm', net_pooling='avgpooling',
+                 im_size=(32, 32), dataset='cifar10'):
         super(ConvNet, self).__init__()
-        channel =  channel_dict.get(dataset)
-        self.features, shape_feat = self._make_layers(channel, net_width, net_depth, net_norm, net_act, net_pooling, im_size)
-        num_feat = shape_feat[0]*shape_feat[1]*shape_feat[2]
-        print(f"num feat {num_feat}")
-        self.classifier = nn.Linear(num_feat, num_classes)
+
+        channel = channel_dict[dataset]
+        # 先构造普通 nn.Sequential
+        features, shape_feat = self._make_layers(channel, net_width, net_depth,
+                                                 net_norm, net_act, net_pooling, im_size)
+        num_feat = shape_feat[0] * shape_feat[1] * shape_feat[2]
+
+        # 关键：用 SequentialWithInternalStatePrediction 包装
+        self.features = SequentialWithInternalStatePrediction(*features)
+        self.classifier = SequentialWithInternalStatePrediction(
+            nn.Linear(num_feat, num_classes)
+        )
+
+
 
     def forward(self, x):
         # print("MODEL DATA ON: ", x.get_device(), "MODEL PARAMS ON: ", self.classifier.weight.data.get_device())
-        out = self.get_feature(x)
+        out = self.features(x)
+        out = out.view(out.size(0), -1)
         out = self.classifier(out)
         return out
 
@@ -415,6 +435,20 @@ class ConvNet(nn.Module):
 
         return nn.Sequential(*layers), shape_feat
 
+    def predict_internal_states(self, x):
+        """
+        返回模型在每一层的输出
+        """
+        outputs = []
+        for layer in self.features:
+            x = layer(x)
+            outputs.append(x)
+        x = x.view(x.size(0), -1)
+        outputs.append(x)
+        x = self.classifier(x)
+        outputs.append(x)
+        return outputs
+
 
 
 class TextModel(nn.Module):
@@ -445,6 +479,72 @@ class LogisticRegression(nn.Module):
         out = x @ self.fc
         return out
 
+
+    
+class SequentialWithInternalStatePrediction(nn.Sequential):
+    """
+    Adapted version of Sequential that implements the function predict_internal_states
+    """
+
+    def predict_internal_states(self, x):
+        """
+        applies the submodules on the input. Compared to forward, this function also returns
+        all intermediate outputs
+        """
+        result = []
+        for module in self:
+            x = module(x)
+            # We can define our layer as we want. We selected Convolutional and
+            # Linear Modules as layers here.
+            # Differs for every model architecture.
+            # Can be defined by the defender.
+            if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+                result.append(x)
+        return result, x
+
+
+class Net(nn.Module):
+    def __init__(self, num_classes=10, dataset='cifar10'):
+        super(Net, self).__init__()
+        self.features = SequentialWithInternalStatePrediction(
+            nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2),
+            nn.Conv2d(64, 192, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2),
+            nn.Conv2d(192, 384, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(384, 256, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2),
+        )
+        self.classifier = SequentialWithInternalStatePrediction(
+            nn.Dropout(),
+            nn.Linear(256 * 2 * 2, 4096),
+            nn.ReLU(inplace=True),
+            nn.Dropout(),
+            nn.Linear(4096, 4096),
+            nn.ReLU(inplace=True),
+            nn.Linear(4096, num_classes),
+        )
+
+    def forward(self, x):
+        x = self.features(x)
+        x = x.view(x.size(0), 256 * 2 * 2)
+        x = self.classifier(x)
+        return x
+
+    def predict_internal_states(self, x):
+        result, x = self.features.predict_internal_states(x)
+        x = x.view(x.size(0), 256 * 2 * 2)
+        result += self.classifier.predict_internal_states(x)[0]
+        return result
+
+
+
 def get_model(model):
 
   return  {   "mobilenetv2" : (mobilenetv2, optim.Adam, {"lr" : 0.001}),
@@ -455,6 +555,7 @@ def get_model(model):
                 "MLP" : (MLP, optim.Adam, {"lr" : 0.001}),
                 "TextModel" : (TextModel, optim.Adam, {"lr" : 1}),
                 "LogisticRegression" : (LogisticRegression, optim.Adam, {"lr" : 0.001}),
+                "Net": (Net, optim.Adam, {"lr": 0.001}),  # 添加 Net 模型   
           }[model]
 
 

@@ -541,7 +541,7 @@ def get_labels_att(test_loader):
     return np.concatenate(labels)
 
 def eval_op_ensemble(models, test_loader):
-    for model in models:
+    for i, model in enumerate(models):
         # model.train()
         model.eval()
 
@@ -549,6 +549,7 @@ def eval_op_ensemble(models, test_loader):
 
     with torch.no_grad():
         for i, (x, y) in enumerate(test_loader):
+         
             x, y = x.to(device), y.to(device)
 
             y_ = torch.mean(torch.stack([model(x) for model in models], dim=0), dim=0)

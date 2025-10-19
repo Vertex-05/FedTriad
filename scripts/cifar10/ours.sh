@@ -5,11 +5,11 @@ hyperparameters04='[{
     "random_seed" : [4],
 
     "dataset" : ["cifar10"],
-    "models" : [{"ConvNet" : 100}],
+    "models" : [{"Net" : 50}],
 
-    "attack_rate" :  [0.28],
+    "attack_rate" :  [0.50],
     "attack_method": ["Scaling"],
-    "participation_rate" : [0.1],
+    "participation_rate" : [0.4],
 
     "alpha" : [0.1],
 
@@ -20,10 +20,10 @@ hyperparameters04='[{
 
     "local_optimizer" : [ ["SGD", {"lr": 0.001}]],
 
-    "aggregation_mode" : ["REDefense_fedavg"],
+    "aggregation_mode" : ["FedReGuard"],
 
     "sample_size": [0],
-    "syn_steps" : [5],
+    "syn_steps" : [3],
     "lr_img": [1e-1],
     "lr_teacher": [5e-2],
     "lr_label": [5e-2],
@@ -31,7 +31,7 @@ hyperparameters04='[{
     "img_optim": ["sgd"],
     "lr_optim": ["sgd"],
     "save_scores" : [false],
-    "Iteration": [500],
+    "Iteration": [300],
     "Max_Iter": [1500],
 
     "pretrained" : [null],
