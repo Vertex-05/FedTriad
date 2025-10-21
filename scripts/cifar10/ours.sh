@@ -5,13 +5,13 @@ hyperparameters04='[{
     "random_seed" : [4],
 
     "dataset" : ["cifar10"],
-    "models" : [{"Net" : 50}],
+    "models" : [{"Net" : 30}],
 
     "attack_rate" :  [0.50],
     "attack_method": ["Scaling"],
-    "participation_rate" : [0.4],
+    "participation_rate" : [0.50],
 
-    "alpha" : [0.1],
+    "alpha" : [0.5],
 
     "distill_interval": [1],
     "communication_rounds" : [300],
@@ -32,7 +32,7 @@ hyperparameters04='[{
     "lr_optim": ["sgd"],
     "save_scores" : [false],
     "Iteration": [300],
-    "Max_Iter": [1500],
+    "Max_Iter": [500],
 
     "pretrained" : [null],
     "save_model" : [null],

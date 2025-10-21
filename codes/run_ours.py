@@ -410,7 +410,7 @@ def run_experiment(xp, xp_count, n_experiments):
       soft_benign_ids, defer_benign_ids = set(), set()
 
       # ---- 情况1: soft组不为空 ----
-      if len(soft_clients) > 0:
+      if len(soft_clients) > 2:
           print(f"[CrowdGuard] Soft group size = {len(soft_clients)}")
 
           all_models = [client.model for client in soft_clients]
@@ -420,6 +420,7 @@ def run_experiment(xp, xp_count, n_experiments):
           soft_votes_matrix = CrowdGuard_validate(soft_clients, all_models, client_loaders, global_model, all_client_names)
           soft_benign_ids = set(server.crowdguard_aggregate(soft_clients, soft_votes_matrix, all_client_names))
       else:
+          soft_benign_ids = set()
           print("[CrowdGuard] Soft group empty, skip first validation.")
 
       # ---- 情况2: defer或soft_defer组不为空 ----
@@ -427,8 +428,7 @@ def run_experiment(xp, xp_count, n_experiments):
           # 🔹 defer组为空，直接跳过soft+defer的重复检测
           defer_benign_ids = soft_benign_ids
           print("[CrowdGuard] Defer group empty — skip soft+defer joint validation.")
-          defer_benign_ids = set([i for i in range(len(soft_clients))])  # 默认为soft都良性
-      elif len(soft_defer_clients) > 0:
+      elif len(soft_defer_clients) > 2:
           print(f"[CrowdGuard] Defer group size = {len(soft_defer_clients)}")
           print(f"soft_defer_clients ids: {[c.id for c in soft_defer_clients]}")
 
