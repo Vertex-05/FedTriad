@@ -117,15 +117,50 @@ def get_data(dataset, path):
 
 
 def get_loaders(train_data, test_data, n_clients=10, alpha=0, batch_size=128, n_data=None, num_workers=0, seed=0):
-#   import pdb; pdb.set_trace()
-  subset_idcs = split_dirichlet(train_data.targets, n_clients, n_data, alpha, seed=seed)
-  client_data = [torch.utils.data.Subset(train_data, subset_idcs[i]) for i in range(n_clients)]
+    """
+    根据 Dirichlet 分布划分数据并为每个客户端生成 DataLoader。
+    增加功能：
+    - 打印每个客户端样本数量
+    - 若样本太少则自动补齐
+    """
+    subset_idcs = split_dirichlet(train_data.targets, n_clients, n_data, alpha, seed=seed)
 
+    # 🔹 (1) 打印当前每个客户端样本数量分布
+    client_sizes = [len(idcs) for idcs in subset_idcs]
+    avg_size = int(np.mean(client_sizes))
+    print("\n[Data Split Summary]")
+    for i, size in enumerate(client_sizes):
+        print(f" - Client {i:2d}: {size:5d} samples")
+    print(f"Average samples per client: {avg_size}\n")
 
-  client_loaders = [torch.utils.data.DataLoader(subset, batch_size=batch_size, shuffle=True, num_workers=num_workers) for subset in client_data]
-  test_loader = torch.utils.data.DataLoader(test_data, batch_size=256, num_workers=num_workers)
-#   import pdb; pdb.set_trace()
-  return client_loaders, test_loader
+    # 🔹 (2) 设置最小样本阈值（例如：平均值的 50%，但不少于 100 张）
+    min_samples = max(100, int(avg_size * 0.5))
+    print(f"[Data Balance] Ensuring each client has at least {min_samples} samples.\n")
+
+    # 🔹 (3) 对样本太少的客户端进行数据补齐
+    total_indices = np.arange(len(train_data))
+    for i, idcs in enumerate(subset_idcs):
+        if len(idcs) < min_samples:
+            supplement = np.random.choice(total_indices, min_samples - len(idcs), replace=False)
+            subset_idcs[i] = np.concatenate([idcs, supplement])
+            print(f" --> Client {i:2d} had {len(idcs):4d} samples, added {len(supplement)} to reach {len(subset_idcs[i])}")
+
+    # 🔹 (4) 创建 DataLoader
+    client_data = [torch.utils.data.Subset(train_data, subset_idcs[i]) for i in range(n_clients)]
+    client_loaders = [
+        torch.utils.data.DataLoader(subset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+        for subset in client_data
+    ]
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=256, num_workers=num_workers)
+
+    # 🔹 (5) 打印最终分布
+    print("\n[Final Client Sample Counts]")
+    for i, subset in enumerate(client_data):
+        print(f" - Client {i:2d}: {len(subset)} samples")
+    print()
+
+    return client_loaders, test_loader
+
 
 def get_loaders_classes(train_data, test_data, n_clients=10, alpha=0, batch_size=128, n_data=None, num_workers=0, seed=0, classes =  [0,2,4], total_num = 1500, indices=None):
     print(f"number of clients {n_clients}")

@@ -381,7 +381,7 @@ def run_experiment(xp, xp_count, n_experiments):
         loss.append(client_loss)
 
         # --- 按重构误差分组 ---
-        if client_loss > 0.9:
+        if client_loss > 0.95:
             group_hard.add(client.id)
         elif client_loss >= 0.75:
             group_defer.add(client.id)
