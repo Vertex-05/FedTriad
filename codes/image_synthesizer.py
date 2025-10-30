@@ -84,8 +84,9 @@ class Synthesizer:
         self.iteration = args.Iteration
         self.Max_Iter = args.Max_Iter
         self.channel = args.channel
-        hard_label = [np.ones(args.ipc, dtype=np.long)*i for i in range(args.num_classes)]
-        label_syn = torch.nn.functional.one_hot(torch.tensor(hard_label).reshape(-1), num_classes=args.num_classes).float()
+        hard_label = [np.ones(args.ipc, dtype=int) * i for i in range(args.num_classes)]
+        hard_label = np.array(hard_label, dtype=int)  # ✅ 一次性合并为 numpy 数组
+        label_syn = torch.nn.functional.one_hot(torch.from_numpy(hard_label).reshape(-1),num_classes=args.num_classes).float()        
         label_syn = label_syn * args.label_init
         label_syn = label_syn.detach().to(self.device).requires_grad_(True)
         image_syn = torch.randn(size=(args.num_classes * args.ipc, args.channel, args.imsize[0], args.imsize[1]), dtype=torch.float)

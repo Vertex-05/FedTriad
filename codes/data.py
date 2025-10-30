@@ -128,14 +128,10 @@ def get_loaders(train_data, test_data, n_clients=10, alpha=0, batch_size=128, n_
     # 🔹 (1) 打印当前每个客户端样本数量分布
     client_sizes = [len(idcs) for idcs in subset_idcs]
     avg_size = int(np.mean(client_sizes))
-    print("\n[Data Split Summary]")
-    for i, size in enumerate(client_sizes):
-        print(f" - Client {i:2d}: {size:5d} samples")
-    print(f"Average samples per client: {avg_size}\n")
 
     # 🔹 (2) 设置最小样本阈值（例如：平均值的 50%，但不少于 100 张）
     min_samples = max(100, int(avg_size * 0.5))
-    print(f"[Data Balance] Ensuring each client has at least {min_samples} samples.\n")
+    # print(f"[Data Balance] Ensuring each client has at least {min_samples} samples.\n")
 
     # 🔹 (3) 对样本太少的客户端进行数据补齐
     total_indices = np.arange(len(train_data))
@@ -152,12 +148,6 @@ def get_loaders(train_data, test_data, n_clients=10, alpha=0, batch_size=128, n_
         for subset in client_data
     ]
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=256, num_workers=num_workers)
-
-    # 🔹 (5) 打印最终分布
-    print("\n[Final Client Sample Counts]")
-    for i, subset in enumerate(client_data):
-        print(f" - Client {i:2d}: {len(subset)} samples")
-    print()
 
     return client_loaders, test_loader
 

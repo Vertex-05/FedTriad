@@ -14,7 +14,7 @@ hyperparameters04='[{
     "alpha" : [0.5],
 
     "distill_interval": [1],
-    "communication_rounds" : [300],
+    "communication_rounds" : [15],
     "local_epochs" : [1],
     "batch_size" : [32],
 
@@ -36,7 +36,7 @@ hyperparameters04='[{
 
     "pretrained" : [null],
     "save_model" : [null],
-    "log_frequency" : [10],
+    "log_frequency" : [1],
     "log_path" : ["new_noniid/"]}]
 
 '

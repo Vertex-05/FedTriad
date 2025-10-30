@@ -6,13 +6,28 @@ import matplotlib.pyplot as plt
 
 
 def save_results(results_dict, path, name, verbose=True):
-    results_numpy = {key : np.array(value)for key, value in results_dict.items()}
+    """
+    将结果字典保存为 .npz 文件，自动处理非均匀结构（例如 crowdguard_round_groups）
+    """
+    results_numpy = {}
+
+    for key, value in results_dict.items():
+        try:
+            # 一般变量可直接转 numpy
+            results_numpy[key] = np.array(value)
+        except Exception as e:
+            # 对非均匀结构使用 object 数组保存
+            print(f"[Warning] Could not convert key '{key}' to np.array normally, using dtype=object. Error: {e}")
+            results_numpy[key] = np.array(value, dtype=object)
 
     if not os.path.exists(path):
         os.makedirs(path)
-    np.savez(path+name, **results_numpy) 
+    np.savez(os.path.join(path, name), **results_numpy)
+
     if verbose:
-        print("Saved results to ", path+name+".npz")
+        print("Saved results to ", os.path.join(path, name) + ".npz")
+
+
 
 
 def load_results(path, filename, verbose=True):

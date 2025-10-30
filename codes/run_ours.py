@@ -10,6 +10,7 @@ from sklearn.metrics import silhouette_score
 from scipy.spatial.distance import cdist, pdist
 from CrowdGuardClientValidation import CrowdGuardClientValidation
 
+
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (2048, rlimit[1]))
 np.set_printoptions(precision=4, suppress=True)
@@ -164,6 +165,66 @@ def run_experiment(xp, xp_count, n_experiments):
   # initialize server and clients
   server = Server(np.unique(model_names), test_loader,num_classes=num_classes, dataset = hp['dataset'])
   initial_model_state = server.models[0].state_dict().copy()
+  # # ---------- initialize clients (benign + malicious, mixed attacks) ----------
+  # # server already initialized above
+  # n_total = len(client_loaders)
+  # n_malicious = int(hp["attack_rate"] * n_total)
+  # n_benign = n_total - n_malicious
+
+  # # Split malicious group: 70% primary attack_method, 30% data-backdoor
+  # frac_primary = 0.7
+  # n_primary = int(np.floor(frac_primary * n_malicious))
+  # n_backdoor = n_malicious - n_primary
+
+  # print(f"[Client Init] total={n_total}, benign={n_benign}, malicious={n_malicious} (primary={n_primary}, backdoor={n_backdoor})")
+
+  # clients = []
+  # primary_assigned = 0
+  # backdoor_assigned = 0
+
+  # for i, (loader, model_name) in enumerate(zip(client_loaders, model_names)):
+  #     # benign clients occupy first n_benign indices (same as original logic)
+  #     if i < n_benign:
+  #         clients.append(Client(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset=hp['dataset']))
+  #     else:
+  #         # malicious slot
+  #         if primary_assigned < n_primary:
+  #             # assign the chosen primary attack
+  #             primary_assigned += 1
+  #             print(f"[Client Init] idx={i} -> PRIMARY ({hp['attack_method']})")
+  #             if hp["attack_method"] == "label_flip":
+  #                 clients.append(Client_flip(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset=hp['dataset']))
+  #             elif hp["attack_method"] == "Fang":
+  #                 clients.append(Client_Fang(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset=hp['dataset']))
+  #             elif hp["attack_method"] == "MPAF":
+  #                 clients.append(Client_MPAF(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset=hp['dataset']))
+  #                 clients[-1].init_model = initial_model_state
+  #             elif hp["attack_method"] == "Min-Max":
+  #                 clients.append(Client_MinMax(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset=hp['dataset']))
+  #             elif hp["attack_method"] == "Min-Sum":
+  #                 clients.append(Client_MinSum(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset=hp['dataset']))
+  #             elif hp["attack_method"] == "Scaling":
+  #                 clients.append(Client_Scaling(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset=hp['dataset']))
+  #             elif hp["attack_method"] == "DBA":
+  #                 clients.append(Client_DBA(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset=hp['dataset']))
+  #             else:
+  #                 # fall back to scaling if unknown
+  #                 print(f"[Warning] Unknown attack_method {hp['attack_method']}, defaulting to Scaling.")
+  #                 clients.append(Client_Scaling(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset=hp['dataset']))
+  #         else:
+  #             # assign backdoor client for the remaining malicious slots
+  #             backdoor_assigned += 1
+  #             pdr = hp.get("backdoor_pdr", 0.5)
+  #             target = hp.get("backdoor_target", 2)
+  #             print(f"[Client Init] idx={i} -> BACKDOOR (pdr={pdr}, target={target})")
+  #             cl = Client_Backdoor(model_name, optimizer_fn, loader, idnum=i,
+  #                                            num_classes=num_classes, dataset=hp['dataset'],
+  #                                            pdr=pdr, target_label=target, scale=1.0, prepare_poisoned=True, max_poison_samples=None)
+  #             clients.append(cl)
+  #             client_loaders[i] = cl.loader
+  # # sanity check
+  # assert len(clients) == n_total, "Client count mismatch"
+
   if hp["attack_rate"] == 0:
         clients = [Client(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) for i, (loader, model_name) in enumerate(zip(client_loaders, model_names))]
   else:
@@ -190,6 +251,7 @@ def run_experiment(xp, xp_count, n_experiments):
             clients.append(Client_DBA(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
           else:
             import pdb; pdb.set_trace()  
+
 
   print(clients[0].model)
   # initialize data synthesizer
@@ -226,6 +288,11 @@ def run_experiment(xp, xp_count, n_experiments):
   # === SPRT Initialization on Server ===
   # ==========================================================
   server.init_sprt(clients, use_table10=True)
+  # ========= 初始化 CrowdGuard + SPRT 日志容器 =========
+  history_round_groups = []  # 每轮的 soft/defer/hard、恶意检测、SPRT移除信息
+  xp.results["crowdguard_round_groups"] = []  # ✅ 初始化列表，避免 log 嵌套
+  # =====================================================
+
 
   for c_round in range(1, hp["communication_rounds"]+1):
 
@@ -257,105 +324,6 @@ def run_experiment(xp, xp_count, n_experiments):
       client.synchronize_with_server(server)
       train_stats = client.compute_weight_update(hp["local_epochs"])
 
-
-    # if "CrowdGuard" in hp["aggregation_mode"]:
-    #   VOTE_FOR_BENIGN = 1
-    #   VOTE_FOR_POISONED = 0
-
-    #   device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    #   all_models = [client.model for client in participating_clients]
-    #   global_model = server.models[0]
-    #   all_client_names = [client.id for client in participating_clients]
-
-    #   # 收集所有客户端的投票
-    #   votes_matrix = []
-    #   for own_client_index, client in enumerate(participating_clients):
-    #       client_name = all_client_names[own_client_index]
-    #       detected_suspicious_models = CrowdGuardClientValidation.validate_models(
-    #           global_model,
-    #           all_models,
-    #           own_client_index,
-    #           client_loaders[client_name],
-    #           device
-    #       )
-    #       detected_suspicious_models = sorted(detected_suspicious_models)
-    #       suspicious_names = [all_client_names[idx] for idx in detected_suspicious_models]
-    #       print(f'Suspicious Models detected by {client_name}: {suspicious_names}')
-
-
-    #       votes_of_this_client = []
-    #       for c in range(len(all_models)):
-    #           if c == own_client_index:
-    #               votes_of_this_client.append(VOTE_FOR_BENIGN)
-    #           elif c in detected_suspicious_models:
-    #               votes_of_this_client.append(VOTE_FOR_POISONED)
-    #           else:
-    #               votes_of_this_client.append(VOTE_FOR_BENIGN)
-    #       votes_matrix.append(votes_of_this_client)
-
-    #   # 聚合：调用 server 的 crowdguard_aggregate 方法
-    #   server.crowdguard_aggregate(participating_clients, votes_matrix, all_client_names)
-
-
-
-
-
-    # if "REDefense" in hp["aggregation_mode"]:
-    #   loss = []
-    #   labels = []
-    #   round_iter = 0
-    #   for client in participating_clients:
-    #     if client.id >= (1 - hp["attack_rate"])* len(client_loaders):
-    #       labels.append(1)
-    #     else:
-    #       labels.append(0)
-    #     if len(syn_data[client.id]) == 0:
-    #       first = True
-    #     else:
-    #       first = False
-    #     start_trajectories[client.id].append([server.models[0].state_dict().copy()[name].cpu().clone() for name in server.models[0].state_dict()])
-    #     end_trajectories[client.id].append([client.model.state_dict().copy()[name].cpu().clone() for name in client.model.state_dict()])
-
-    #     client_loss, syn_data_client, syn_label_client, syn_lr_client, cur_iter = synthesizer.synthesize_single(start_trajectories, end_trajectories, syn_data, syn_label, syn_lr,  client.id, args, c_round)
-    #     round_iter += cur_iter
-    #     if first == False and cur_iter > max_iter and labels[-1] == 0:
-    #       max_iter = cur_iter
-    #     if first == True and cur_iter > max_first_iter and labels[-1] == 0:
-    #       max_first_iter = cur_iter
-    #     loss.append(client_loss)
-    #     syn_data[client.id] = syn_data_client
-    #     syn_label[client.id] = syn_label_client
-    #     syn_lr[client.id] = syn_lr_client
-
-    #   avg_round_iter = round_iter/len(participating_clients)
-    #   overall_iter += avg_round_iter
-    #   acc, recall, fpr, fnr, pred_label = threshold_detection(loss, labels)
-
-    #   # 简洁打印恶意客户端检测结果
-    #   malicious_clients = [client.id for idx, client in enumerate(participating_clients) if pred_label[idx] == 1]
-    #   print(f"FedREDefense _detected Suspicious Models detected: {malicious_clients}")
-
-    #   for idx, client in enumerate(participating_clients):
-    #       clients_flags[client.id] = (pred_label[idx] == 0)
-      
-    #   real_label = np.array(labels)
-    #   loss = np.array(loss).reshape(-1, 1)
-    #   benign_avg_loss = np.mean(loss[real_label == 0])
-    #   mali_avg_loss = np.mean(loss[real_label == 1])
-    #   print({"dacc":acc, "drecall":recall, "dfpr":fpr, "dfnr":fnr, "benign_avg_loss":benign_avg_loss, "mali_avg_loss":mali_avg_loss})
-
-    #   filtered_clients = [item for item, label in zip(participating_clients, pred_label) if label==0]
-    #   if "median" in hp["aggregation_mode"]:
-    #     server.median(filtered_clients)
-    #   elif "fedavg" in hp["aggregation_mode"]:
-    #     server.fedavg(filtered_clients)
-    #   else:
-    #     raise NotImplementedError
-    #   acc, recall, fpr, fnr, pred_label = detection_metric_per_round([1 - x for x in overall_label], [1 - x for x in clients_flags])
-      
-    #   print({"overall_dacc":acc, "overall_drecall":recall, "overall_dfpr":fpr, "overall_dfnr":fnr})
-
-
     if "FedReGuard" in hp["aggregation_mode"]:
       loss = []
       labels = []
@@ -381,7 +349,7 @@ def run_experiment(xp, xp_count, n_experiments):
         loss.append(client_loss)
 
         # --- 按重构误差分组 ---
-        if client_loss > 0.95:
+        if client_loss > 0.993:
             group_hard.add(client.id)
         elif client_loss >= 0.75:
             group_defer.add(client.id)
@@ -395,11 +363,23 @@ def run_experiment(xp, xp_count, n_experiments):
         syn_lr[client.id] = syn_lr_client
         round_iter += cur_iter
 
+      # ---------- 统计并打印各组平均 RE ----------
+      # 建立 {client.id: client_loss} 映射
+      loss_dict = {client.id: loss[i] for i, client in enumerate(participating_clients)}
 
-      # 打印各组id
-      print(f"soft_group: {group_soft}")
-      print(f"defer_group: {group_defer}")
-      print(f"hard_group: {group_hard}")
+      def avg_loss(group):
+          if len(group) == 0:
+              return 0.0
+          return sum(loss_dict[i] for i in group) / len(group)
+
+      avg_soft = avg_loss(group_soft)
+      avg_defer = avg_loss(group_defer)
+      avg_hard = avg_loss(group_hard)
+
+      print(f"soft_group: {group_soft} | avg RE: {avg_soft:.4f}")
+      print(f"defer_group: {group_defer} | avg RE: {avg_defer:.4f}")
+      print(f"hard_group: {group_hard} | avg RE: {avg_hard:.4f}")
+
 
       # ------------------ CrowdGuard 阶段 ------------------
       soft_clients = [c for c in participating_clients if c.id in group_soft]
@@ -408,6 +388,7 @@ def run_experiment(xp, xp_count, n_experiments):
 
       # 初始化 benign 集合为空（后续逐步填充）
       soft_benign_ids, defer_benign_ids = set(), set()
+      soft_final_malicious, defer_final_malicious,malicious_clients = set(), set(), set()
 
       # ---- 情况1: soft组不为空 ----
       if len(soft_clients) > 2:
@@ -421,7 +402,7 @@ def run_experiment(xp, xp_count, n_experiments):
           soft_benign_ids = set(server.crowdguard_aggregate(soft_clients, soft_votes_matrix, all_client_names))
       else:
           soft_benign_ids = set()
-          print("[CrowdGuard] Soft group empty, skip first validation.")
+          print("[CrowdGuard] The number of clients in soft group < 3, skip first validation.")
 
       # ---- 情况2: defer或soft_defer组不为空 ----
       if len(group_defer) == 0:
@@ -452,7 +433,6 @@ def run_experiment(xp, xp_count, n_experiments):
           # 恶意判定逻辑（基于 soft_benign_ids / defer_benign_ids 的索引规则）
           # ================================================================
 
-          soft_final_malicious, defer_final_malicious = set(), set()
 
           # --- soft组：需要在 soft 和 soft+defer 检测中都被判为恶意 ---
           for idx, client in enumerate(soft_clients):
@@ -519,6 +499,7 @@ def run_experiment(xp, xp_count, n_experiments):
 
       # ============ 4. SPRT 判定阶段 ============
       malicious_sp_clients = set()
+      removed_clients_this_round = []
       for cid, st in server.sprt_state.items():
           # warm-up阶段不做决策
           if c_round < params['W']:
@@ -531,6 +512,7 @@ def run_experiment(xp, xp_count, n_experiments):
           if st['LLR'] >= params['logA']:
               malicious_sp_clients.add(cid)
               clients_flags[cid] = False  # ✅ 永久剔除
+              removed_clients_this_round.append(cid)
               print(f"[SPRT] Client {cid} removed from participation (LLR={st['LLR']:.3f})")
 
           # 判为良性 → 不做任何操作（保留活跃状态）
@@ -547,8 +529,17 @@ def run_experiment(xp, xp_count, n_experiments):
       active_count = sum(clients_flags)
       removed_count = len(clients) - active_count
       print(f"[Round {c_round}] Active clients: {active_count}, Removed: {removed_count}")
-
-
+      # ========== 记录本轮 CrowdGuard + SPRT 状态 ==========
+      xp.results["crowdguard_round_groups"].append({
+          "round": c_round,
+          "soft_group": sorted(list(group_soft)),
+          "defer_group": sorted(list(group_defer)),
+          "hard_group": sorted(list(group_hard)),
+          "soft_final_malicious": sorted(list(soft_final_malicious)),
+          "defer_final_malicious": sorted(list(defer_final_malicious)),
+          "hard_malicious": sorted(list(group_hard)),  # hard直接算恶意
+          "removed_clients": sorted(list(removed_clients_this_round)),
+      })
       # ============ 5. 聚合阶段 ============
       if len(benign_clients) == 0:
           print("[Warning] No benign clients found this round — skipping aggregation.")
@@ -556,13 +547,6 @@ def run_experiment(xp, xp_count, n_experiments):
           server.fedavg(benign_clients)
 
 
-      # # ------------------ 聚合阶段 ------------------
-      # benign_clients = [c for c in participating_clients if c.id not in malicious_clients]
-
-      # if len(benign_clients) == 0:
-      #     print("[Warning] No benign clients found this round — skipping aggregation.")
-      # else:
-      #     server.fedavg(benign_clients)
 
 
 
