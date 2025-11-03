@@ -4,31 +4,31 @@ cmdargs=$1
 # `echo "export CUDA_VISIBLE_DEVICES=${gpu}"`
 #export CUDA_VISIBLE_DEVICES='0,1'
 #"FedAVG","median", "NormBound","trmean","krum","flame"
-export CUDA_VISIBLE_DEVICES='1'
+export CUDA_VISIBLE_DEVICES='0'
 hyperparameters04='[{
     "random_seed" : [4],
 
     "dataset" : ["fmnist"],
-    "models" : [{"ConvNet" : 100}],
+    "models" : [{"Net" : 30}],
 
 
-    "attack_rate" :  [0.28],
+    "attack_rate" :  [0.50],
     "attack_method": ["Scaling"],
-    "participation_rate" : [1],
+    "participation_rate" : [0.50],
 
-    "alpha" : [0.1],
+    "alpha" : [0.5],
 
     "distill_interval": [1],
-    "communication_rounds" : [300],
+    "communication_rounds" : [15],
     "local_epochs" : [1],
     "batch_size" : [32],
 
     "local_optimizer" : [ ["SGD", {"lr": 0.001}]],
 
-    "aggregation_mode" : ["REDefense_fedavg"],
+    "aggregation_mode" : ["FedReGuard"],
 
     "sample_size": [0],
-    "syn_steps" : [5],
+    "syn_steps" : [3],
     "lr_img": [0.5],
     "lr_teacher": [0.1],
     "lr_label": [0.2],
@@ -36,8 +36,8 @@ hyperparameters04='[{
     "img_optim": ["sgd"],
     "lr_optim": ["sgd"],
     "save_scores" : [false],
-    "Iteration": [800],
-    "Max_Iter": [2000],
+    "Iteration": [300],
+    "Max_Iter": [500],
 
     "interval": [20],
     "pretrained" : [null],

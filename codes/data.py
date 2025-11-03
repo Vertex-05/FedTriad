@@ -43,11 +43,23 @@ def split_dirichlet(labels, n_clients, n_data, alpha, double_stochstic=True, see
     return client_idcs
 
 def get_cinic10(path):
+    """
+    加载 CINIC-10 数据集，保持 RGB 三通道输入，标准化参数与官方一致。
+    """
     cinic_directory = '../data/cinic10'
     cinic_mean = [0.47889522, 0.47227842, 0.43047404]
     cinic_std = [0.24205776, 0.23828046, 0.25874835]
-    train_data = torchvision.datasets.ImageFolder(cinic_directory + '/train', transform=torchvision.transforms.Compose([torchvision.transforms.ToTensor(), torchvision.transforms.Normalize(mean=cinic_mean,std=cinic_std)]))
-    test_data = torchvision.datasets.ImageFolder(cinic_directory + '/test', transform=torchvision.transforms.Compose([torchvision.transforms.ToTensor(), torchvision.transforms.Normalize(mean=cinic_mean,std=cinic_std)]))
+
+    transforms = torchvision.transforms.Compose([
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Normalize(mean=cinic_mean, std=cinic_std)
+    ])
+    train_data = torchvision.datasets.ImageFolder(
+        cinic_directory + '/train', transform=transforms
+    )
+    test_data = torchvision.datasets.ImageFolder(
+        cinic_directory + '/test', transform=transforms
+    )
     return train_data, test_data
 
 def get_cifar10(path):
@@ -62,13 +74,20 @@ def get_cifar10(path):
   return train_data, test_data
 
 def get_fmnist(path):
+    """
+    加载 FashionMNIST（原始为灰度图），自动扩展为 3 通道，以适配 CIFAR 风格模型。
+    """
     transforms = torchvision.transforms.Compose([
+        torchvision.transforms.Grayscale(num_output_channels=3),  # ✅ 灰度转3通道
         torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize((0.1307,), (0.3081,))
+        torchvision.transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # ✅ 使用3通道均值/方差
     ])
-    train_data = torchvision.datasets.FashionMNIST(root=path+"FMNIST", train=True, download=True, transform=transforms)
-    test_data = torchvision.datasets.FashionMNIST(root=path+"FMNIST", train=False, download=True, transform=transforms)
-
+    train_data = torchvision.datasets.FashionMNIST(
+        root=path + "FMNIST", train=True, download=True, transform=transforms
+    )
+    test_data = torchvision.datasets.FashionMNIST(
+        root=path + "FMNIST", train=False, download=True, transform=transforms
+    )
     return train_data, test_data
 
 
