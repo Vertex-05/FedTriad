@@ -5,16 +5,16 @@ hyperparameters04='[{
     "random_seed" : [4],
 
     "dataset" : ["cifar10"],
-    "models" : [{"Net" : 30}],
+    "models" : [{"ConvNet" : 50}],
 
     "attack_rate" :  [0.50],
     "attack_method": ["Scaling"],
-    "participation_rate" : [0.50],
+    "participation_rate" : [0.20],
 
     "alpha" : [0.5],
 
     "distill_interval": [1],
-    "communication_rounds" : [15],
+    "communication_rounds" : [100],
     "local_epochs" : [1],
     "batch_size" : [32],
 
@@ -37,7 +37,20 @@ hyperparameters04='[{
     "pretrained" : [null],
     "save_model" : [null],
     "log_frequency" : [1],
-    "log_path" : ["new_noniid/"]}]
+    "log_path" : ["new_noniid/"],
+    
+    "re_thresh_hard": [0.993],
+    "re_thresh_defer": [0.75],
+
+    "sprt_W": [2],
+    "sprt_M_min": [3],
+    "sprt_min_hard_count": [2],
+    "sprt_alpha": [0.01],
+    "sprt_beta": [0.05],
+    "sprt_P_G_b": [{"soft": 0.9, "defer": 0.09, "hard": 0.01}],
+    "sprt_P_G_m": [{"soft": 0.02, "defer": 0.08, "hard": 0.9}],
+    "sprt_p_vote_b": [0.05],
+    "sprt_p_vote_m": [0.9]}]
 
 '
 

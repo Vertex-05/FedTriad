@@ -74,20 +74,13 @@ def get_cifar10(path):
   return train_data, test_data
 
 def get_fmnist(path):
-    """
-    加载 FashionMNIST（原始为灰度图），自动扩展为 3 通道，以适配 CIFAR 风格模型。
-    """
     transforms = torchvision.transforms.Compose([
-        torchvision.transforms.Grayscale(num_output_channels=3),  # ✅ 灰度转3通道
         torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # ✅ 使用3通道均值/方差
+        torchvision.transforms.Normalize((0.1307,), (0.3081,))
     ])
-    train_data = torchvision.datasets.FashionMNIST(
-        root=path + "FMNIST", train=True, download=True, transform=transforms
-    )
-    test_data = torchvision.datasets.FashionMNIST(
-        root=path + "FMNIST", train=False, download=True, transform=transforms
-    )
+    train_data = torchvision.datasets.FashionMNIST(root=path+"FMNIST", train=True, download=True, transform=transforms)
+    test_data = torchvision.datasets.FashionMNIST(root=path+"FMNIST", train=False, download=True, transform=transforms)
+
     return train_data, test_data
 
 

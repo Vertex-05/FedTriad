@@ -253,64 +253,72 @@ class Server(Device):
         self.parameter_dict[model_name][name].data = self.parameter_dict[model_name][name].data + clipped_models[idx:(idx+self.parameter_dict[model_name][name].data.numel())].reshape(self.parameter_dict[model_name][name].data.shape)
         idx += self.parameter_dict[model_name][name].data.numel()
 
-  def init_sprt(self, clients, use_table10=True):
-      """
-      初始化 SPRT 参数与状态。
-      - clients: 当前参与的客户端列表
-      - use_table10: 是否根据 FedREDefense 的 Table 10 初始化 P(G|H)
-      """
-      import numpy as np
+  def init_sprt(self, clients, hp=None, use_table10=True):
 
-      # ------------------- 常规参数 -------------------
-      W = 2
-      M_min = 3
-      min_hard_count = 2
-      alpha = 0.01
-      beta = 0.05
+      #  基本参数设定（允许外部覆盖）
+      W = hp.get("sprt_W", 2) if hp else 2
+      M_min = hp.get("sprt_M_min", 3) if hp else 3
+      min_hard_count = hp.get("sprt_min_hard_count", 2) if hp else 2
+      alpha = hp.get("sprt_alpha", 0.01) if hp else 0.01
+      beta = hp.get("sprt_beta", 0.05) if hp else 0.05
+
       logA = np.log((1 - beta) / alpha)
       logB = np.log(beta / (1 - alpha))
 
-      # ------------------- P(G|H) 概率参数 -------------------
-      if use_table10:
-          # 示例参数，可根据 Table 10 μ/σ 重新拟合
-          P_G_b = {'soft': 0.90, 'defer': 0.09, 'hard': 0.01}
-          P_G_m = {'soft': 0.02, 'defer': 0.08, 'hard': 0.90}
+
+      #  P(G|H) 概率设定
+      if hp and "sprt_P_G_b" in hp and "sprt_P_G_m" in hp:
+          P_G_b = hp["sprt_P_G_b"]
+          P_G_m = hp["sprt_P_G_m"]
       else:
-          # 默认经验参数
-          P_G_b = {'soft': 0.8, 'defer': 0.15, 'hard': 0.05}
-          P_G_m = {'soft': 0.05, 'defer': 0.15, 'hard': 0.8}
+          if use_table10:
+              P_G_b = {'soft': 0.90, 'defer': 0.09, 'hard': 0.01}
+              P_G_m = {'soft': 0.02, 'defer': 0.08, 'hard': 0.90}
+          else:
+              P_G_b = {'soft': 0.8, 'defer': 0.15, 'hard': 0.05}
+              P_G_m = {'soft': 0.05, 'defer': 0.15, 'hard': 0.8}
 
-      # ------------------- CrowdGuard 投票模型参数 -------------------
-      p_vote_b = 0.05
-      p_vote_m = 0.90
 
-      # ------------------- 初始化 SPRT 状态 -------------------
+      #  CrowdGuard 投票模型参数
+
+      p_vote_b = hp.get("sprt_p_vote_b", 0.05) if hp else 0.05
+      p_vote_m = hp.get("sprt_p_vote_m", 0.90) if hp else 0.90
+
+      #  初始化 SPRT 状态
       sp_state = {}
       for c in clients:
           cid = c.id if hasattr(c, 'id') else c
           sp_state[cid] = {
-              'LLR': 0.0,
-              'obs': 0,
+              'LLR': 0.0,             # 累积似然比
+              'obs': 0,               # 观测计数
               're_count': {'soft': 0, 'defer': 0, 'hard': 0},
               'n_votes': 0,
               'k_votes': 0,
               'first_hard_round': None
           }
 
-      # ------------------- 写入 server 属性 -------------------
+      #  写入 server 属性
       self.sprt_state = sp_state
       self.sprt_params = {
-          'W': W, 'M_min': M_min, 'min_hard_count': min_hard_count,
-          'alpha': alpha, 'beta': beta, 'logA': logA, 'logB': logB,
-          'P_G_b': P_G_b, 'P_G_m': P_G_m, 'p_vote_b': p_vote_b, 'p_vote_m': p_vote_m
+          'W': W,
+          'M_min': M_min,
+          'min_hard_count': min_hard_count,
+          'alpha': alpha,
+          'beta': beta,
+          'logA': logA,
+          'logB': logB,
+          'P_G_b': P_G_b,
+          'P_G_m': P_G_m,
+          'p_vote_b': p_vote_b,
+          'p_vote_m': p_vote_m
       }
 
+      #  打印初始化信息
       print("[Server] SPRT initialized successfully.")
-      print(f"  Warm-up = {W}, min_obs = {M_min}, logA={logA:.2f}, logB={logB:.2f}")
-      print(f"  P_G_b: {P_G_b}, P_G_m: {P_G_m}")
+      print(f"  Warm-up = {W}, min_obs = {M_min}, logA={logA:.3f}, logB={logB:.3f}")
+      print(f"  P_G_b: {P_G_b}")
+      print(f"  P_G_m: {P_G_m}")
       print(f"  p_vote_b={p_vote_b}, p_vote_m={p_vote_m}")
-
-
 
   def crowdguard_aggregate(self, clients, votes_matrix, all_client_names):
       # Following the CrowdGuard paper, this should be executed within SGX
@@ -352,3 +360,4 @@ class Server(Device):
       return negatives
 
       # self.fedavg([client for client in clients if client.model in recognized_benign_models])
+

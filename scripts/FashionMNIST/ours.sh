@@ -1,20 +1,16 @@
 cmdargs=$1
 
-# `gpu=$1`
-# `echo "export CUDA_VISIBLE_DEVICES=${gpu}"`
-#export CUDA_VISIBLE_DEVICES='0,1'
-#"FedAVG","median", "NormBound","trmean","krum","flame"
 export CUDA_VISIBLE_DEVICES='0'
 hyperparameters04='[{
     "random_seed" : [4],
 
     "dataset" : ["fmnist"],
-    "models" : [{"Net" : 30}],
+    "models" : [{"ConvNet" : 30}],
 
 
     "attack_rate" :  [0.50],
     "attack_method": ["Scaling"],
-    "participation_rate" : [0.50],
+    "participation_rate" : [0.40],
 
     "alpha" : [0.5],
 
@@ -36,14 +32,27 @@ hyperparameters04='[{
     "img_optim": ["sgd"],
     "lr_optim": ["sgd"],
     "save_scores" : [false],
-    "Iteration": [300],
-    "Max_Iter": [500],
+    "Iteration": [350],
+    "Max_Iter": [200],
 
     "interval": [20],
     "pretrained" : [null],
     "save_model" : [null],
     "log_frequency" : [1],
-    "log_path" : ["new_noniid/"]}]
+    "log_path" : ["new_noniid/"],
+    
+    "re_thresh_hard": [0.90],
+    "re_thresh_defer": [0.75],
+
+    "sprt_W": [2],
+    "sprt_M_min": [3],
+    "sprt_min_hard_count": [2],
+    "sprt_alpha": [0.01],
+    "sprt_beta": [0.05],
+    "sprt_P_G_b": [{"soft": 0.9, "defer": 0.09, "hard": 0.01}],
+    "sprt_P_G_m": [{"soft": 0.02, "defer": 0.08, "hard": 0.9}],
+    "sprt_p_vote_b": [0.05],
+    "sprt_p_vote_m": [0.9]}]
 
 '
 
