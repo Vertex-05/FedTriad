@@ -5,11 +5,11 @@ hyperparameters04='[{
     "random_seed" : [4],
 
     "dataset" : ["cifar10"],
-    "models" : [{"ConvNet" : 50}],
+    "models" : [{"Net" : 30}],
 
     "attack_rate" :  [0.50],
     "attack_method": ["Scaling"],
-    "participation_rate" : [0.20],
+    "participation_rate" : [0.50],
 
     "alpha" : [0.5],
 
@@ -39,7 +39,7 @@ hyperparameters04='[{
     "log_frequency" : [1],
     "log_path" : ["new_noniid/"],
     
-    "re_thresh_hard": [0.993],
+    "re_thresh_hard": [0.95],
     "re_thresh_defer": [0.75],
 
     "sprt_W": [2],

@@ -283,11 +283,7 @@ def run_experiment(xp, xp_count, n_experiments):
       train_stats = client.compute_weight_update(hp["local_epochs"])
 
     if "FedReGuard" in hp["aggregation_mode"]:
-      # if sum(clients_flags ) <= 15:
-      print("[Warning] Not enough clients for FedREDefense + CrowdGuard — skipping to FedAvg.")
-      benign_clients = [c for c in participating_clients if clients_flags[c.id]]
-      server.fedavg(benign_clients)
-        
+
       loss = []
       labels = []
       group_soft = set() # soft组
