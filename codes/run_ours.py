@@ -499,6 +499,27 @@ def run_experiment(xp, xp_count, n_experiments):
           "hard_malicious": sorted(list(group_hard)),  # hard直接算恶意
           "removed_clients": sorted(list(removed_clients_this_round)),
       })
+
+# =================================================================
+      # [新增代码] 记录本轮所有客户端的 LLR (SMI) 值，用于画图
+      # =================================================================
+      # 获取总客户端数（包括未参与的）
+      total_n_clients = len(client_loaders) 
+      current_llrs = []
+      
+      for cid in range(total_n_clients):
+          # 检查 server.sprt_state 是否有该客户端记录
+          if cid in server.sprt_state:
+              val = server.sprt_state[cid]['LLR']
+          else:
+              val = 0.0
+          current_llrs.append(val)
+      
+      # 将本轮的 LLR 列表记录到日志中
+      # xp.log 会自动将其追加保存。键名必须是 'sprt_llr_history' 以便绘图脚本识别
+      xp.log({'sprt_llr_history': current_llrs}, printout=False)
+      # =================================================================
+
       # ============ 5. 聚合阶段 ============
       if len(benign_clients) == 0:
           print("[Warning] No benign clients found this round — skipping aggregation.")
