@@ -181,31 +181,114 @@ def run_experiment(xp, xp_count, n_experiments):
   initial_model_state = server.models[0].state_dict().copy()
 
  
+  # if hp["attack_rate"] == 0:
+  #       clients = [Client(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) for i, (loader, model_name) in enumerate(zip(client_loaders, model_names))]
+  # else:
+  #   clients = []
+  #   for i, (loader, model_name) in enumerate(zip(client_loaders, model_names)):
+  #       if i < (1 - hp["attack_rate"])* len(client_loaders):
+  #         clients.append(Client(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
+  #       else:
+  #         print(i)
+  #         if hp["attack_method"] == "label_flip":
+  #           clients.append(Client_flip(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']))
+  #         elif hp["attack_method"] == "Fang":
+  #           clients.append(Client_Fang(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
+  #         elif hp["attack_method"] == "MPAF":
+  #           clients.append(Client_MPAF(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
+  #         elif hp["attack_method"] == "Min-Max":
+  #           clients.append(Client_MinMax(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
+  #         elif hp["attack_method"] == "Min-Sum":
+  #           clients.append(Client_MinSum(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
+  #         elif hp["attack_method"] == "Scaling":
+  #           clients.append(Client_Scaling(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
+  #         elif hp["attack_method"] == "DBA":
+  #           clients.append(Client_DBA(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
+  #         else:
+  #           import pdb; pdb.set_trace()  
+
+# ==================================================================================
+#   [修改版] 客户端初始化逻辑：支持混合攻击 (Model Poisoning + Data Poisoning)
+#   ==================================================================================
+  
+  # 1. 如果没有攻击 (attack_rate == 0)
   if hp["attack_rate"] == 0:
-        clients = [Client(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) for i, (loader, model_name) in enumerate(zip(client_loaders, model_names))]
+      clients = [Client(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) 
+                 for i, (loader, model_name) in enumerate(zip(client_loaders, model_names))]
+  
+  # 2. 如果有攻击 (执行混合攻击逻辑)
   else:
     clients = []
+    total_n = len(client_loaders)
+    
+    # --- 计算各组数量 ---
+    # 总恶意数量 (例如 0.5 * 30 = 15)
+    n_malicious = int(hp["attack_rate"] * total_n) 
+    # 良性数量 (30 - 15 = 15)
+    n_benign = total_n - n_malicious               
+    
+    # 混合比例设定：
+    # Backdoor (数据投毒) 固定占总数的 10% (例如 0.1 * 30 = 3)
+    n_backdoor = int(0.10 * total_n)
+    
+    # Model Poisoning (模型投毒) 占剩余的恶意份额 (例如 15 - 3 = 12，即 40%)
+    n_model_poison = n_malicious - n_backdoor
+    
+    print(f"\n[Attack Configuration] Total Clients: {total_n}")
+    print(f"  - Benign: {n_benign} (IDs: 0 ~ {n_benign-1})")
+    print(f"  - Model Poisoning ({hp['attack_method']}): {n_model_poison} (IDs: {n_benign} ~ {n_benign + n_model_poison - 1})")
+    print(f"  - Data Poisoning (Backdoor): {n_backdoor} (IDs: {n_benign + n_model_poison} ~ {total_n - 1})")
+    print("----------------------------------------------------\n")
+
     for i, (loader, model_name) in enumerate(zip(client_loaders, model_names)):
-        if i < (1 - hp["attack_rate"])* len(client_loaders):
-          clients.append(Client(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
+        # --- A. 良性客户端 (0 ~ n_benign-1) ---
+        if i < n_benign:
+            clients.append(Client(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']))
+        
+        # --- B. 模型投毒客户端 (n_benign ~ n_benign + n_model_poison - 1) ---
+        # 这里的攻击方法由 hp["attack_method"] 动态决定
+        elif i < n_benign + n_model_poison:
+            method = hp["attack_method"]
+            
+            # 保持你原有的模型投毒方法选择逻辑
+            if method == "label_flip":
+                clients.append(Client_flip(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']))
+            elif method == "Fang":
+                clients.append(Client_Fang(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']))
+            elif method == "MPAF":
+                clients.append(Client_MPAF(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']))
+                if hasattr(clients[-1], 'init_model'): # 确保 init_model 存在才赋值
+                    clients[-1].init_model = initial_model_state
+            elif method == "Min-Max":
+                clients.append(Client_MinMax(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']))
+            elif method == "Min-Sum":
+                clients.append(Client_MinSum(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']))
+            elif method == "Scaling":
+                clients.append(Client_Scaling(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']))
+            elif method == "DBA":
+                clients.append(Client_DBA(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']))
+            else:
+                # 如果填了未知方法，为了代码不崩，默认回退到 Scaling
+                print(f"[Warning] Unknown attack method '{method}', fallback to Scaling.")
+                clients.append(Client_Scaling(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']))
+
+        # --- C. 数据投毒客户端 (剩余的 10%) ---
         else:
-          print(i)
-          if hp["attack_method"] == "label_flip":
-            clients.append(Client_flip(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']))
-          elif hp["attack_method"] == "Fang":
-            clients.append(Client_Fang(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
-          elif hp["attack_method"] == "MPAF":
-            clients.append(Client_MPAF(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
-          elif hp["attack_method"] == "Min-Max":
-            clients.append(Client_MinMax(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
-          elif hp["attack_method"] == "Min-Sum":
-            clients.append(Client_MinSum(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
-          elif hp["attack_method"] == "Scaling":
-            clients.append(Client_Scaling(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
-          elif hp["attack_method"] == "DBA":
-            clients.append(Client_DBA(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
-          else:
-            import pdb; pdb.set_trace()  
+            # 这里的参数是为了 "Strong Adversary" 设定的
+            # PDR=0.3, Scale=2.0 确保 CrowdGuard 能检测到 BAS 异常
+            # 如果你想要通过脚本控制，可以用 hp.get("pdr", 0.7)
+            pdr_val = hp.get("pdr", 0.7)  
+            
+            # 注意：这里调用的是我们在 client.py 中最新修改过的 Client_Backdoor
+            # 务必确保你的 client.py 已经加上了支持 scale 参数的版本
+            clients.append(Client_Backdoor(
+                model_name, optimizer_fn, loader, idnum=i, 
+                num_classes=num_classes, dataset = hp['dataset'], 
+                pdr=pdr_val, 
+                scale=3.0,            # 关键：给数据投毒也加点放大，让它更容易被检测到
+                target_label=2,       # 目标标签，可按需修改
+                prepare_poisoned=True # 初始化时立即生成带毒数据
+            ))
 
 
   print(clients[0].model)
@@ -291,6 +374,10 @@ def run_experiment(xp, xp_count, n_experiments):
       group_hard = set() # hard组
       round_iter = 0
 
+      # 用于记录本轮所有参与客户端的 RE 数据
+      # 格式: list of [client_id, re_value]
+      current_round_re_data = []
+
     # ============ 1. FedREDefense 阶段 ============
       for client in participating_clients:
         if client.id >= (1 - hp["attack_rate"])* len(client_loaders):
@@ -307,6 +394,10 @@ def run_experiment(xp, xp_count, n_experiments):
         client_loss, syn_data_client, syn_label_client, syn_lr_client, cur_iter = synthesizer.synthesize_single(start_trajectories, end_trajectories, syn_data, syn_label, syn_lr,  client.id, args, c_round)
         loss.append(client_loss)
 
+        # === [修改点 2] 收集本轮 RE 数据 ===
+        # 我们存下 [ID, RE值]，画图时再区分良性/恶意
+        current_round_re_data.append([client.id, client_loss])
+
         # --- 按重构误差分组 ---
         if client_loss > args.re_thresh_hard:
             group_hard.add(client.id)
@@ -321,6 +412,11 @@ def run_experiment(xp, xp_count, n_experiments):
         syn_label[client.id] = syn_label_client
         syn_lr[client.id] = syn_lr_client
         round_iter += cur_iter
+
+      # === [修改点 3] 将本轮 RE 数据写入日志 ===
+      # xp.log 会自动将这个列表追加到历史记录中
+      # 最终在 npz 文件里，'re_raw_history' 将是一个形状为 (Rounds, Clients_per_round, 2) 的数组
+      xp.log({'re_raw_history': current_round_re_data}, printout=False)
 
       # ---------- 统计并打印各组平均 RE ----------
       # 建立 {client.id: client_loss} 映射
@@ -339,6 +435,86 @@ def run_experiment(xp, xp_count, n_experiments):
       print(f"defer_group: {group_defer} | avg RE: {avg_defer:.4f}")
       print(f"hard_group: {group_hard} | avg RE: {avg_hard:.4f}")
 
+      # [新增] ==== Round 4 专属抓拍：收集 PCA 数据 ====
+      if c_round == 4:
+          print(f"[Visualization] Capturing PCA snapshot at Round {c_round} for Soft+Defer group...")
+          
+          # 只有当组内人数足够时才抓拍，否则 PCA 会报错
+          if len(soft_defer_clients) > 2:
+              try:
+                  # 1. 准备数据
+                  # 选取验证者 (Validator)：为了效果最好，选 Soft 组里的良性节点作为锚点
+                  # 如果 Soft 组有人，取第一个；否则取联合组第一个
+                  validator = soft_clients[0] if len(soft_clients) > 0 else soft_defer_clients[0]
+                  
+                  target_models = [c.model for c in soft_defer_clients]
+                  target_ids = [c.id for c in soft_defer_clients]
+                  
+                  # 2. 调用 CrowdGuard 底层逻辑提取特征
+                  # 需要引入必要的库
+                  from CrowdGuardClientValidation import CrowdGuardClientValidation, DistanceMetric
+                  from sklearn.preprocessing import StandardScaler
+                  from sklearn.decomposition import PCA
+
+                  # (A) 预测深层输出 (DLOs) - 调用私有方法
+                  tmp = CrowdGuardClientValidation._CrowdGuardClientValidation__do_predictions(
+                      target_models, server.models[0], client_loaders[validator.id], device
+                  )
+                  pred_matrix, global_pred, sample_indices, num_layers = tmp
+                  
+                  # (B) 计算距离 (Cosine Distance)
+                  # 找到 validator 在 target_models 列表中的索引 (用于相对距离计算)
+                  # 注意：validator 必须在 target_models 里
+                  if validator.id in target_ids:
+                      val_rel_idx = target_ids.index(validator.id)
+                  else:
+                      # 极端情况：validator 不在 target 里（不太可能，因为 soft_defer 包含 soft）
+                      val_rel_idx = 0 
+
+                  dist_matrix_map = CrowdGuardClientValidation._CrowdGuardClientValidation__distance_global_model_final_metric(
+                      DistanceMetric.COSINE, pred_matrix, global_pred, sample_indices, val_rel_idx
+                  )
+                  
+                  # (C) 展平特征 (Flatten) -> 准备 PCA
+                  # CrowdGuard 的特征构建：把不同 Label 的层级距离拼接起来
+                  features_list = []
+                  for m_i in range(len(target_models)): # 遍历每个模型
+                      model_feat = []
+                      for label_key in sorted(dist_matrix_map.keys()): # 按 Label 顺序遍历
+                          # dist_matrix_map[label][m_i] 是一个 list of layers (e.g., [L1_dist, L2_dist...])
+                          model_feat.extend(dist_matrix_map[label_key][m_i])
+                      features_list.append(model_feat)
+                  
+                  # (D) 执行 PCA
+                  # CrowdGuard 逻辑：先 Scale 再 PCA
+                  if len(features_list) > 0:
+                      scaler = StandardScaler()
+                      scaled_features = scaler.fit_transform(features_list)
+                      
+                      # 我们只需要第一主成分 (PC1) 来画那个 1D 图
+                      pca = PCA(n_components=1) 
+                      pc1_values = pca.fit_transform(scaled_features) # shape (N, 1)
+                      
+                      # (E) 记录数据 
+                      # 格式: [client_id, pc1_value, is_malicious, group_type]
+                      snapshot_data = []
+                      for idx, cid in enumerate(target_ids):
+                          # 判断真实身份 (Ground Truth)
+                          is_mal = 1 if cid >= (1 - hp["attack_rate"]) * len(client_loaders) else 0
+                          g_type = 'soft' if cid in group_soft else 'defer'
+                          
+                          snapshot_data.append([cid, float(pc1_values[idx][0]), is_mal, g_type])
+                      
+                      # 写入日志，键名为 'pca_round_4_data'
+                      xp.log({'pca_round_4_data': snapshot_data}, printout=False)
+                      print(f"[Visualization] Round 4 PCA data captured ({len(snapshot_data)} clients).")
+                  
+              except Exception as e:
+                  print(f"[Visualization Error] Failed to capture Round 4 PCA: {e}")
+                  import traceback
+                  traceback.print_exc()
+          else:
+              print("[Visualization] Skipped Round 4 PCA: Not enough clients in Soft+Defer group.")
 
       # ------------------ CrowdGuard 阶段 ------------------
       soft_clients = [c for c in participating_clients if c.id in group_soft]

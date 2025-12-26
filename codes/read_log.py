@@ -3,8 +3,11 @@ import pprint
 import os
 import sys
 
+# 【修改点1】设置 NumPy 打印选项，强制显示所有元素，不省略，行宽设大一点避免换行过多
+np.set_printoptions(threshold=sys.maxsize, linewidth=200, edgeitems=None)
+
 def load_npz(filename):
-    """加载并打印 npz 文件中的所有内容（包含 CrowdGuard & SPRT 记录解析）"""
+    """加载并打印 npz 文件中的所有内容（不进行任何省略）"""
     if not os.path.exists(filename):
         print(f"File not found: {filename}")
         sys.exit(1)
@@ -32,13 +35,12 @@ def load_npz(filename):
                 print("\n============================================================")
                 print("=== CrowdGuard & SPRT Summary per Round ===\n")
                 
-                # 兼容处理：有些版本可能是嵌套数组，有些是直接列表
                 flat_rounds = []
                 for elem in arr:
                     if isinstance(elem, dict):
                         flat_rounds.append(elem)
-                    elif isinstance(elem, np.ndarray): # 处理可能的嵌套
-                        if elem.shape == (): # 0-d array wrapping dict
+                    elif isinstance(elem, np.ndarray):
+                        if elem.shape == ():
                             flat_rounds.append(elem.item())
                         else:
                             for sub in elem:
@@ -61,12 +63,11 @@ def load_npz(filename):
         if key == "participating_clients":
             print(f"Shape   : {arr.shape}")
             print(f"Dtype   : {arr.dtype}")
-            # 只打印前5轮和后5轮，避免刷屏
+            
+            # 【修改点2】移除省略中间轮次的逻辑，打印所有轮次
             total_rows = arr.shape[0]
             for i in range(total_rows):
-                if total_rows > 20 and 5 < i < total_rows - 5:
-                    if i == 6: print("   ... (omitting middle rounds) ...")
-                    continue
+                # 之前的 if total_rows > 20 ... 代码已被删除
                 print(f"Round {i+1:03d}: {row_to_str(arr[i])}")
             print()
             continue
@@ -83,18 +84,11 @@ def load_npz(filename):
             except Exception:
                 print("Value   :", arr)
         
-        # ==== 4. [新增] 处理普通数组 (比如 accuracy, lr 等) ====
+        # ==== 4. 处理普通数组 (accuracy, lr 等) ====
         else:
-            # 如果数据量小，直接打印
-            if arr.size < 50:
-                print(f"Value   : {arr}")
-            else:
-                # 数据量大，打印统计信息或首尾
-                print(f"Shape   : {arr.shape}")
-                print(f"First 5 : {arr.flatten()[:5]}")
-                print(f"Last 5  : {arr.flatten()[-5:]}")
-                print(f"Mean    : {np.mean(arr):.4f}")
-                print(f"Max     : {np.max(arr):.4f}")
+            # 【修改点3】移除 if arr.size < 50 的判断，统一打印完整数据
+            print(f"Shape   : {arr.shape}")
+            print(f"Value   :\n{arr}") # 直接打印完整数组
 
         print()
 
