@@ -141,7 +141,7 @@ class Server(Device):
     
     self.models = list(self.model_dict.values())
 
-    # === FedREDefense + CrowdGuard + SPRT: 初始化区域 ===
+    # === FedREDefense + ExogenousDetection + SPRT: 初始化区域 ===
     # ==========================================================
     self.sprt_state = {}
     self.sprt_params = {}
@@ -279,7 +279,7 @@ class Server(Device):
               P_G_m = {'soft': 0.05, 'defer': 0.15, 'hard': 0.8}
 
 
-      #  CrowdGuard 投票模型参数
+      #  ExogenousDetection 投票模型参数
 
       p_vote_b = hp.get("sprt_p_vote_b", 0.05) if hp else 0.05
       p_vote_m = hp.get("sprt_p_vote_m", 0.90) if hp else 0.90
@@ -289,7 +289,7 @@ class Server(Device):
       for c in clients:
           cid = c.id if hasattr(c, 'id') else c
           sp_state[cid] = {
-              'LLR': 0.0,             # 累积似然比
+              'SMI': 0.0,             # 累积似然比
               'obs': 0,               # 观测计数
               're_count': {'soft': 0, 'defer': 0, 'hard': 0},
               'n_votes': 0,
@@ -320,8 +320,8 @@ class Server(Device):
       print(f"  P_G_m: {P_G_m}")
       print(f"  p_vote_b={p_vote_b}, p_vote_m={p_vote_m}")
 
-  def crowdguard_aggregate(self, clients, votes_matrix, all_client_names):
-      # Following the CrowdGuard paper, this should be executed within SGX
+  def ExogenousDetection_aggregate(self, clients, votes_matrix, all_client_names):
+      # Following the ExogenousDetection paper, this should be executed within SGX
 
       # votes_matrix: List[List[int]]，每行是一个客户端对所有模型的投票
       all_names = [client.id for client in clients]

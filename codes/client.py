@@ -708,10 +708,10 @@ class Client_DBA(Device):
   
 
 
-# # ---- trigger_single_image: 与 CrowdGuard 官方一致 ----
+# # ---- trigger_single_image: 与 ExogenousDetection 官方一致 ----
 # def trigger_single_image(image):
 #     """
-#     Add 6x6 red square to (C,H,W) normalized image — identical to CrowdGuard official.
+#     Add 6x6 red square to (C,H,W) normalized image — identical to ExogenousDetection official.
 #     image: torch.Tensor (C,H,W) in normalized space (same normalization as training)
 #     """
 #     # official: color = (torch.Tensor((1, 0, 0)) - MEAN) / STD
@@ -721,11 +721,11 @@ class Client_DBA(Device):
 #     image[:, 0:6, 0:6] = color.repeat((6, 6, 1)).permute(2, 1, 0)
 #     return image
 
-# # ---- poison_data: 与 CrowdGuard 官方一致 ----
+# # ---- poison_data: 与 ExogenousDetection 官方一致 ----
 # def poison_data(samples_to_poison, labels_to_poison, pdr=0.5, target_label=2):
 #     """
 #     Poison a batch of samples (NxCxHxW) by injecting the trigger into pdr fraction,
-#     and set their label to target_label. Implementation follows CrowdGuard official.
+#     and set their label to target_label. Implementation follows ExogenousDetection official.
 #     Returns (poisoned_samples, poisoned_labels) as tensors (labels = long).
 #     """
 #     if pdr == 0:
@@ -785,7 +785,7 @@ class Client_DBA(Device):
 #     Data-poisoning client compatible with Client_Scaling interface.
 #     - prepare_poisoned_loader(): 将原 loader 转为内存并注入 trigger，生成被投毒的 DataLoader 并写回 self.loader
 #     - 在 run_ours.py 中创建 client 后调用 cl.prepare_poisoned_loader()，
-#       然后用 client_loaders[i] = cl.loader 让 CrowdGuard 使用投毒数据。
+#       然后用 client_loaders[i] = cl.loader 让 ExogenousDetection 使用投毒数据。
 #     """
 #     def __init__(self, model_name, optimizer_fn, loader, idnum=0, num_classes=10, dataset='cifar10',
 #                  pdr=0.5, target_label=2, scale=1.0, prepare_poisoned=True, max_poison_samples=None):
@@ -927,10 +927,10 @@ class Client_DBA(Device):
 #  将以下代码追加到 codes/client.py 的末尾
 # ============================================================================
 
-# ---- 1. Trigger 注入函数 (保持 CrowdGuard 官方 6x6 设定) ----
+# ---- 1. Trigger 注入函数 (保持 ExogenousDetection 官方 6x6 设定) ----
 def trigger_single_image(image):
     """
-    Add 6x6 red square to (C,H,W) normalized image — identical to CrowdGuard official.
+    Add 6x6 red square to (C,H,W) normalized image — identical to ExogenousDetection official.
     image: torch.Tensor (C,H,W) in normalized space (same normalization as training)
     """
     # 确保 MEAN 和 STD 在 client.py 头部已定义，或在此处局部定义

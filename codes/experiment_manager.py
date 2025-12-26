@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 def save_results(results_dict, path, name, verbose=True):
     """
-    将结果字典保存为 .npz 文件，自动处理非均匀结构（例如 crowdguard_round_groups）
+    将结果字典保存为 .npz 文件，自动处理非均匀结构（例如 ExogenousDetection_round_groups）
     """
     results_numpy = {}
 

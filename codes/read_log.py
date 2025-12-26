@@ -27,13 +27,13 @@ def load_npz(filename):
         print(f"Variable: {key}")
         print(f"Type    : {type(arr)}")
 
-        # ==== 1. 特殊处理 CrowdGuard + SPRT 数据 ====
-        if key == "crowdguard_round_groups":
+        # ==== 1. 特殊处理 ExogenousDetection + SPRT 数据 ====
+        if key == "ExogenousDetection_round_groups":
             print(f"Length  : {len(arr)}")
             if len(arr) > 0:
                 print("Sample  :", arr[:1])
                 print("\n============================================================")
-                print("=== CrowdGuard & SPRT Summary per Round ===\n")
+                print("=== ExogenousDetection & SPRT Summary per Round ===\n")
                 
                 flat_rounds = []
                 for elem in arr:
