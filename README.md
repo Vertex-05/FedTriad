@@ -40,11 +40,9 @@ bash ./scripts/cifar10/ours.sh
 
 
 
-# Acknowledgement
-We appreciate the inspiration and code support from the following open source projects.
-
-FedREDefense: Defending against Model Poisoning Attacks for Federated Learning using Model Update Reconstruction Error
-
-CrowdGuard: Federated Backdoor Detection in Federated Learning
-
-Dataset Distillation by Matching Training Trajectories
+## Acknowledgement
+We would like to give credit to the following repositories for their code and resources that we used in our project:  
+- CrowdGuard: Federated Backdoor Detection in Federated Learning  
+  https://github.com/securefederatedai/openfederatedlearning  
+- FedREDefense: Defending against Model Poisoning Attacks for Federated Learning using Model Update Reconstruction Error  
+  https://github.com/xyq7/FedREDefense  
