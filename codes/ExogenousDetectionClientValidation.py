@@ -5,6 +5,23 @@
 # Primary author: Phillip Rieger <phillip.rieger@trust.tu-darmstadt.de>
 # Co-authored-by: Torsten Krauss <torsten.krauss@uni-wuerzburg.de>
 # ------------------------------------------------------------
+
+# ==============================================================================
+# [Reference / Acknowledgement]
+# This code is adapted/modified from the CrowdGuard implementation.
+# 
+# Original Source Code: https://github.com/securefederatedai/openfederatedlearning
+#
+# Paper Citation:
+# @article{crowdguard,
+#   title={Crowdguard: Federated backdoor detection in federated learning},
+#   author={Rieger, Phillip and Krau{\ss}, Torsten and Miettinen, Markus and Dmitrienko, Alexandra and Sadeghi, Ahmad-Reza},
+#   journal={arXiv preprint arXiv:2210.07714},
+#   year={2022}
+# }
+# ==============================================================================
+
+
 from enum import Enum
 import math
 from copy import deepcopy

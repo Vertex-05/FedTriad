@@ -1,3 +1,12 @@
+"""
+FedTriad Server Logic
+Core architecture: Self-Others-Global Triadic Trust.
+
+Portions of the aggregation and reconstruction logic are adapted from FedREDefense 
+(https://github.com/xyq7/FedREDefense).
+See README.md for full citations.
+"""
+
 import random
 import models as model_utils
 from utils import *

@@ -1,3 +1,12 @@
+"""
+FedTriad Server Logic
+Core architecture: Self-Others-Global Triadic Trust.
+
+Portions of the aggregation and reconstruction logic are adapted from FedREDefense 
+(https://github.com/xyq7/FedREDefense).
+See README.md for full citations.
+"""
+
 from copy import deepcopy
 import random
 from client import *
@@ -88,10 +97,6 @@ def ExogenousDetection_validate(participating_clients ,all_models, train_loaders
       VOTE_FOR_POISONED = 0
 
       device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-      # all_models = [client.model for client in participating_clients]
-      # train_loaders = [client.train_loader for client in participating_clients]
-      # global_model = server.models[0]
-      # all_client_names = [client.id for client in participating_clients]
 
       # 收集所有客户端的投票
       votes_matrix = []
@@ -176,41 +181,7 @@ def run_experiment(xp, xp_count, n_experiments):
   client_loaders, test_loader = data.get_loaders(train_data, test_data, n_clients=len(model_names),
         alpha=hp["alpha"], batch_size=hp["batch_size"], n_data=None, num_workers=4, seed=hp["random_seed"])
   
-
-  # initialize server and clients
   server = Server(np.unique(model_names), test_loader,num_classes=num_classes, dataset = hp['dataset'])
-  initial_model_state = server.models[0].state_dict().copy()
-
- 
-  # if hp["attack_rate"] == 0:
-  #       clients = [Client(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) for i, (loader, model_name) in enumerate(zip(client_loaders, model_names))]
-  # else:
-  #   clients = []
-  #   for i, (loader, model_name) in enumerate(zip(client_loaders, model_names)):
-  #       if i < (1 - hp["attack_rate"])* len(client_loaders):
-  #         clients.append(Client(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
-  #       else:
-  #         print(i)
-  #         if hp["attack_method"] == "label_flip":
-  #           clients.append(Client_flip(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']))
-  #         elif hp["attack_method"] == "Fang":
-  #           clients.append(Client_Fang(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
-  #         elif hp["attack_method"] == "MPAF":
-  #           clients.append(Client_MPAF(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
-  #         elif hp["attack_method"] == "Min-Max":
-  #           clients.append(Client_MinMax(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
-  #         elif hp["attack_method"] == "Min-Sum":
-  #           clients.append(Client_MinSum(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
-  #         elif hp["attack_method"] == "Scaling":
-  #           clients.append(Client_Scaling(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
-  #         elif hp["attack_method"] == "DBA":
-  #           clients.append(Client_DBA(model_name, optimizer_fn, loader, idnum=i, num_classes=num_classes, dataset = hp['dataset']) )
-  #         else:
-  #           import pdb; pdb.set_trace()  
-
-# ==================================================================================
-#   [修改版] 客户端初始化逻辑：支持混合攻击 (Model Poisoning + Data Poisoning)
-#   ==================================================================================
   
   # 1. (attack_rate == 0)
   if hp["attack_rate"] == 0:
@@ -419,87 +390,6 @@ def run_experiment(xp, xp_count, n_experiments):
       print(f"defer_group: {group_defer} | avg RE: {avg_defer:.4f}")
       print(f"hard_group: {group_hard} | avg RE: {avg_hard:.4f}")
 
-      # [新增] ==== Round 4 专属抓拍：收集 PCA 数据 ====
-      if c_round == 4:
-          print(f"[Visualization] Capturing PCA snapshot at Round {c_round} for Soft+Defer group...")
-          
-          # 只有当组内人数足够时才抓拍，否则 PCA 会报错
-          if len(soft_defer_clients) > 2:
-              try:
-                  # 1. 准备数据
-                  # 选取验证者 (Validator)：为了效果最好，选 Soft 组里的良性节点作为锚点
-                  # 如果 Soft 组有人，取第一个；否则取联合组第一个
-                  validator = soft_clients[0] if len(soft_clients) > 0 else soft_defer_clients[0]
-                  
-                  target_models = [c.model for c in soft_defer_clients]
-                  target_ids = [c.id for c in soft_defer_clients]
-                  
-                  # 2. 调用 ExogenousDetection 底层逻辑提取特征
-                  # 需要引入必要的库
-                  from ExogenousDetectionClientValidation import ExogenousDetectionClientValidation, DistanceMetric
-                  from sklearn.preprocessing import StandardScaler
-                  from sklearn.decomposition import PCA
-
-                  # (A) 预测深层输出 (DLOs) - 调用私有方法
-                  tmp = ExogenousDetectionClientValidation._ExogenousDetectionClientValidation__do_predictions(
-                      target_models, server.models[0], client_loaders[validator.id], device
-                  )
-                  pred_matrix, global_pred, sample_indices, num_layers = tmp
-                  
-                  # (B) 计算距离 (Cosine Distance)
-                  # 找到 validator 在 target_models 列表中的索引 (用于相对距离计算)
-                  # 注意：validator 必须在 target_models 里
-                  if validator.id in target_ids:
-                      val_rel_idx = target_ids.index(validator.id)
-                  else:
-                      # 极端情况：validator 不在 target 里（不太可能，因为 soft_defer 包含 soft）
-                      val_rel_idx = 0 
-
-                  dist_matrix_map = ExogenousDetectionClientValidation._ExogenousDetectionClientValidation__distance_global_model_final_metric(
-                      DistanceMetric.COSINE, pred_matrix, global_pred, sample_indices, val_rel_idx
-                  )
-                  
-                  # (C) 展平特征 (Flatten) -> 准备 PCA
-                  # ExogenousDetection 的特征构建：把不同 Label 的层级距离拼接起来
-                  features_list = []
-                  for m_i in range(len(target_models)): # 遍历每个模型
-                      model_feat = []
-                      for label_key in sorted(dist_matrix_map.keys()): # 按 Label 顺序遍历
-                          # dist_matrix_map[label][m_i] 是一个 list of layers (e.g., [L1_dist, L2_dist...])
-                          model_feat.extend(dist_matrix_map[label_key][m_i])
-                      features_list.append(model_feat)
-                  
-                  # (D) 执行 PCA
-                  # ExogenousDetection 逻辑：先 Scale 再 PCA
-                  if len(features_list) > 0:
-                      scaler = StandardScaler()
-                      scaled_features = scaler.fit_transform(features_list)
-                      
-                      # 我们只需要第一主成分 (PC1) 来画那个 1D 图
-                      pca = PCA(n_components=1) 
-                      pc1_values = pca.fit_transform(scaled_features) # shape (N, 1)
-                      
-                      # (E) 记录数据 
-                      # 格式: [client_id, pc1_value, is_malicious, group_type]
-                      snapshot_data = []
-                      for idx, cid in enumerate(target_ids):
-                          # 判断真实身份 (Ground Truth)
-                          is_mal = 1 if cid >= (1 - hp["attack_rate"]) * len(client_loaders) else 0
-                          g_type = 'soft' if cid in group_soft else 'defer'
-                          
-                          snapshot_data.append([cid, float(pc1_values[idx][0]), is_mal, g_type])
-                      
-                      # 写入日志，键名为 'pca_round_4_data'
-                      xp.log({'pca_round_4_data': snapshot_data}, printout=False)
-                      print(f"[Visualization] Round 4 PCA data captured ({len(snapshot_data)} clients).")
-                  
-              except Exception as e:
-                  print(f"[Visualization Error] Failed to capture Round 4 PCA: {e}")
-                  import traceback
-                  traceback.print_exc()
-          else:
-              print("[Visualization] Skipped Round 4 PCA: Not enough clients in Soft+Defer group.")
-
       # ------------------ Exogenous Detection ------------------
       soft_clients = [c for c in participating_clients if c.id in group_soft]
       defer_clients = [c for c in participating_clients if c.id in group_defer]
@@ -508,7 +398,7 @@ def run_experiment(xp, xp_count, n_experiments):
       soft_benign_ids, defer_benign_ids = set(), set()
       soft_final_malicious, defer_final_malicious,malicious_clients = set(), set(), set()
 
-      # ---- 情况1: soft组不为空 ----
+      # ---- Step 2: Validation on Set_S ----
       if len(soft_clients) > 2:
           print(f"[Exogenous] Validating Set_S (size= {len(soft_clients)})")
 
@@ -653,10 +543,7 @@ def run_experiment(xp, xp_count, n_experiments):
           "removed_clients": sorted(list(removed_clients_this_round)),
       })
 
-# =================================================================
-      # [新增代码] 记录本轮所有客户端的 SMI (SMI) 值，用于画图
-      # =================================================================
-      # 获取总客户端数（包括未参与的）
+
       total_n_clients = len(client_loaders) 
       current_SMIs = []
       
@@ -668,12 +555,11 @@ def run_experiment(xp, xp_count, n_experiments):
               val = 0.0
           current_SMIs.append(val)
       
-      # 将本轮的 SMI 列表记录到日志中
-      # xp.log 会自动将其追加保存。键名必须是 'sprt_SMI_history' 以便绘图脚本识别
-      xp.log({'sprt_SMI_history': current_SMIs}, printout=False)
-      # =================================================================
 
-      # ============ 5. 聚合阶段 ============
+      xp.log({'sprt_SMI_history': current_SMIs}, printout=False)
+
+
+      # ============ aggregation ============
       if len(benign_clients) == 0:
           print("[Warning] No benign clients found this round — skipping aggregation.")
       else:
